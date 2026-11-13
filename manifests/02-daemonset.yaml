@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: imds-tracker
+  namespace: imds-system
+  labels:
+    app.kubernetes.io/name: imds-tracker
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: imds-tracker
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 10%
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: imds-tracker
+    spec:
+      serviceAccountName: imds-tracker
+      hostNetwork: true
+      hostPID: true
+      dnsPolicy: ClusterFirstWithHostNet
+      terminationGracePeriodSeconds: 30
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: tracker
+          image: your-registry/kubernetes-imds-tracker:0.1.0
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "imds_tracker.main"]
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: METRICS_PORT
+              value: "9877"
+            - name: POD_REFRESH_SECONDS
+              value: "30"
+            - name: IMDS_IP
+              value: "169.254.169.254"
+          ports:
+            - name: metrics
+              containerPort: 9877
+              protocol: TCP
+          securityContext:
+            privileged: true
+            runAsUser: 0
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: kmsg
+              mountPath: /dev/kmsg
+              readOnly: true
+          resources:
+            requests:
+              cpu: 20m
+              memory: 48Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 15
+            periodSeconds: 30
+      volumes:
+        - name: kmsg
+          hostPath:
+            path: /dev/kmsg
+            type: CharDevice

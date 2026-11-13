@@ -1,0 +1,15 @@
+# Optional; requires VictoriaMetrics Operator. Ensure VMAgent selects this resource.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: imds-tracker
+  namespace: imds-system
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: imds-tracker
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
